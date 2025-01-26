@@ -174,9 +174,9 @@ def analyzePropertyListing(property, properties):
 
 # Main function
 def main():
-    st.set_page_config(page_title="Where Do I Go?", page_icon="🏠", layout="wide")
+    st.set_page_config(page_title="Where Do I Live?", page_icon="🏠", layout="wide")
 
-    st.markdown("<h1 style='text-align: center; color: white;'>Where Do I Go?</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: white;'>Where Do I Live?</h1>", unsafe_allow_html=True)
 
     if "map_type" not in st.session_state:
         st.session_state["map_type"] = "default"
