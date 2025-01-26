@@ -42,7 +42,7 @@ def getProperties():
     return properties
 
 # Initialize the map
-def init_map(center=(47.6061, -122.3328), zoom_start=12, map_type="OpenStreetMap"):
+def init_map(center=(47.6061, -122.3328), zoom_start=11, map_type="OpenStreetMap"):
     return folium.Map(location=center, zoom_start=zoom_start, tiles=map_type)
 
 # Create a GeoDataFrame from the dataset
@@ -90,9 +90,31 @@ def main():
     # Load the dataset
     properties = getProperties()
 
-    m = init_map()
-    m = plot_map(properties, m)
-    st_folium(m, height=520, width=600)
+    col1, col2 = st.columns([0.3, 0.7])
+
+    with col1:
+        st.subheader("Filters")
+
+        # Rent filter
+        min_price, max_price = st.slider(
+            "Select Rent Range",
+            int(properties['cost'].min()),
+            int(properties['cost'].max()),
+            (int(properties['cost'].min()), int(properties['cost'].max()))
+        )
+
+        # Filter dataset based on selections
+        filtered_properties = properties[
+            (properties['cost'] >= min_price) &
+            (properties['cost'] <= max_price)
+        ]
+
+    # Map
+    with col2:
+        m = init_map()
+        m = plot_map(filtered_properties, m)
+        st_folium(m, height=700, width=1000)
+
 
 if __name__ == "__main__":
     main()
