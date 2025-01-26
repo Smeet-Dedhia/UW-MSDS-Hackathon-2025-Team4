@@ -59,7 +59,7 @@ def generateFullListingHTML(property):
             <h2 style="text-align: center;"><a target="_blank" rel="noopener noreferrer" href="{link}"><strong>${cost:.2f}</strong></a></h2>
             <p style="text-align: center;"><strong>{bedrooms:.0f} BD | {bathrooms:.0f} BA | {size:.0f} SQFT</strong></p>
             <p style="text-align: center;"><strong>{street_address}, {city}, {state}, {zip_code}</strong></p>
-            <p style="text-align: center; "font-size:12px">{parking_garages:.0f} Parking Garage(s) Nearby</p>
+            <p style="text-align: center; "font-size:12px">{parking_garages:.0f} Parking Garage(s) Included</p>
             <p style="text-align: center; "font-size:12px">{(violent_crimes * 100000):.1f} Violent Crimes (Per 100,000 People) </p>
             <p style="text-align: center; "font-size:12px">{(property_crimes * 100000):.1f} Property Crimes (Per 100,000 People) </p>
         """
@@ -212,15 +212,15 @@ def main():
             "Select Rent Range",
             int(properties['cost'].min()),
             int(properties['cost'].max()),
-            (int(properties['cost'].min()), int(properties['cost'].max()))
+            (int(properties['cost'].min()), int(1500))
         )
 
         # bedroom filter
         min_bedrooms, max_bedrooms = st.slider(
             "Select Bedrooms Range",
-            int(properties['beds'].min()),
-            int(properties['beds'].max()),
-            (int(properties['beds'].min()), int(properties['beds'].max()))
+            int(1),
+            int(10),
+            (int(1), int(3))
         )
 
         # bedroom filter
@@ -228,7 +228,7 @@ def main():
             "Select Bathrooms Range",
             int(properties['full_baths'].min()),
             int(properties['full_baths'].max()),
-            (int(properties['full_baths'].min()), int(properties['full_baths'].max()))
+            (int(properties['full_baths'].min()), 2)
         )
 
         housing_types = properties['style'].unique()
@@ -346,7 +346,7 @@ def main():
             else:
                 st.session_state["map_type"] = "specific_no_amenities"
 
-            if st.button("Analyze Property Listing"):
+            if st.button("Analyze Commute Costs"):
                 analyzePropertyListing(last_clicked_property, properties)
 
 if __name__ == "__main__":
