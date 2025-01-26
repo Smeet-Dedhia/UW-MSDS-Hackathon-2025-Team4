@@ -1,6 +1,7 @@
 import time
 
 import pandas as pd
+import numpy as np
 import geopandas
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
@@ -29,6 +30,30 @@ def generateHTML(link, photo, cost, bedrooms, bathrooms, size, street_address, c
             <h2 style="text-align: center;"><a target="_blank" rel="noopener noreferrer" href="{link}"><strong>${cost:.2f}</strong></a></h2>
             <p style="text-align: center;"><strong>{bedrooms:.0f} BD | {bathrooms:.0f} BA | {size:.0f} SQFT</strong></p>
             <p style="text-align: center;"><strong>{street_address}, {city}, {state}, {zip_code}</strong></p>
+        """
+
+    return output_html
+
+def generateFullListingHTML(property):
+    link = property['property_url']
+    photo = property['primary_photo']
+    cost = property['cost']
+    bedrooms = property['beds']
+    bathrooms = property['full_baths']
+    size = property['sqft']
+    street_address = property['street']
+    city = property['city']
+    state = property['state']
+    zip_code = property['zip_code']
+
+    parking_garages = property['parking_garage'] if not np.isnan(property['parking_garage']) else 0
+
+    output_html = f"""
+            <p><img style="display: block; margin-left: auto; margin-right: auto;" src="{photo}" alt="image of {street_address}" width="300" height="200"/></p>
+            <h2 style="text-align: center;"><a target="_blank" rel="noopener noreferrer" href="{link}"><strong>${cost:.2f}</strong></a></h2>
+            <p style="text-align: center;"><strong>{bedrooms:.0f} BD | {bathrooms:.0f} BA | {size:.0f} SQFT</strong></p>
+            <p style="text-align: center;"><strong>{street_address}, {city}, {state}, {zip_code}</strong></p>
+            <p style="text-align: center;">{parking_garages:.0f} Parking Garage(s) Nearby</p>
         """
 
     return output_html
@@ -90,10 +115,29 @@ def plot_map(properties, folium_map):
         folium.Marker(
             [property['latitude'], property['longitude']],
             popup=property_html,
+            icon=custom_icon,
+            lazy=True
+        ).add_to(folium_map)
+
+    return folium_map
+
+def plotMetros(folium_map):
+    metros = pd.read_csv("metros.csv")
+
+    for i, metro in metros.iterrows():
+
+        # Custom marker design
+        custom_icon = folium.Icon(color="green", icon="fa-train", prefix="fa")
+
+        folium.Marker(
+            [metro['X'], metro['Y']],
+            popup=f"""{metro['Station']} Station""",
             icon=custom_icon
         ).add_to(folium_map)
 
     return folium_map
+
+
 
 # Main function
 def main():
@@ -103,7 +147,7 @@ def main():
     # Load the dataset
     properties = getProperties()
 
-    col1, col2 = st.columns([0.3, 0.7])
+    col1, col2, col3 = st.columns([0.25, 0.55, 0.2])
 
     with col1:
         st.subheader("Filters")
@@ -172,11 +216,91 @@ def main():
 
     # Map
     with col2:
-        m = init_map(center = address_coordinates)
-        m = plot_map(filtered_properties, m)
-        st_folium(m, height=700, width=1000)
+        st.session_state["map_type"] = "default"
 
-    time.sleep(0.01)
+        if (st.session_state["map_type"] == "default"):
+            m = init_map(center = address_coordinates)
+            m = plotMetros(m)
+            m = plot_map(filtered_properties, m)
+            map_data = st_folium(m, height=600, width=1000)
+        elif (st.session_state["map_type"] == "specific_no_amenities"):
+            m = init_map(center=address_coordinates)
+            m = plotMetros(m)
+            m = plot_map(filtered_properties, m)
+
+            folium.Marker(
+                location=[st.session_state["specific_property"]['latitude'], st.session_state["specific_property"]['longitude']],
+                icon=folium.Icon(color='purple', icon_color='#FFFF00'),
+                z_index_offset=1000
+            ).add_to(m)
+
+            map_data = st_folium(m, height=600, width=1000)
+        else:
+            m = init_map(center=address_coordinates)
+            m = plotMetros(m)
+            m = plot_map(filtered_properties, m)
+
+            folium.Marker(
+                location=[st.session_state["specific_property"]['latitude'], st.session_state["specific_property"]['longitude']],
+                icon=folium.Icon(color='purple', icon_color='#FFFF00'),
+                z_index_offset=1000
+            ).add_to(m)
+
+            folium.Marker(
+                location=[st.session_state["nearest_metro"]['latitude'],
+                          st.session_state["nearest_metro"]['longitude']],
+                icon=folium.Icon(color='purple', icon_color='#FFFF00'),
+                z_index_offset=1000
+            ).add_to(m)
+
+            folium.Marker(
+                location=[st.session_state["nearest_park"]['latitude'],
+                          st.session_state["nearest_park"]['longitude']],
+                icon=folium.Icon(color='purple', icon_color='#FFFF00'),
+                z_index_offset=1000
+            ).add_to(m)
+
+            folium.Marker(
+                location=[st.session_state["nearest_parking"]['latitude'],
+                          st.session_state["nearest_parking"]['longitude']],
+                icon=folium.Icon(color='purple', icon_color='#FFFF00'),
+                z_index_offset=1000
+            ).add_to(m)
+
+            print(st.session_state["nearest_parking"])
+
+            map_data = st_folium(m, height=600, width=1000)
+
+
+    with col3:
+        if map_data["last_object_clicked"]:
+            clicked_lat = map_data["last_object_clicked"]["lat"]
+            clicked_lng = map_data["last_object_clicked"]["lng"]
+
+            if not (selected_property := properties[(properties['latitude'] == clicked_lat) & (properties['longitude'] == clicked_lng)]).empty:
+                last_clicked_property = selected_property.iloc[0]
+
+                # folium.Marker(
+                #     location=[last_clicked_property['latitude'], last_clicked_property['longitude']],
+                #     icon=folium.Icon(color='purple', icon_color='#FFFF00'),
+                #     z_index_offset=1000
+                # ).add_to(m)
+
+                st.html(generateFullListingHTML(last_clicked_property))
+
+                st.session_state["map_type"] = "specific_no_amenities"
+                st.session_state["specific_property"] = last_clicked_property
+
+                show_nearby_amenities = st.checkbox("Show Nearby Amenities")
+
+                if (show_nearby_amenities):
+                    st.session_state["map_type"] = "specific_amenities"
+
+                    st.session_state["nearest_metro"] = last_clicked_property[['metro_lat', 'metro_long']]
+                    st.session_state["nearest_park"] = last_clicked_property[['park_lat', 'park_long']]
+                    st.session_state["nearest_parking"] = last_clicked_property[['parking_lat', 'parking_long']]
+                else:
+                    st.session_state["map_type"] = "specific_no_amenities"
 
 
 if __name__ == "__main__":
