@@ -1,5 +1,3 @@
-import time
-
 import pandas as pd
 import numpy as np
 import geopandas
@@ -8,9 +6,8 @@ from geopy.extra.rate_limiter import RateLimiter
 import streamlit as st
 from streamlit_folium import st_folium
 import folium
-from folium.features import CustomIcon
 from shapely.geometry import Point
-from homeharvest import scrape_property
+from model import print_details
 
 def getCoordsFromAddress(address):
     geolocator = Nominatim(user_agent="my_geocoder")
@@ -170,6 +167,11 @@ def plotLandmarks(folium_map):
 
     return folium_map
 
+@st.dialog("Property Listing Analysis")
+def analyzePropertyListing(property, properties):
+    with st.spinner('Analyzing Listing...'):
+        st.text(print_details(property["index"], properties))
+
 # Main function
 def main():
     st.set_page_config(page_title="Home Visualizer", page_icon="🏠", layout="wide")
@@ -326,6 +328,8 @@ def main():
 
         if not selected_property.empty:
             last_clicked_property = selected_property.iloc[0]
+            last_clicked_property = last_clicked_property.rename({"Unnamed: 0" : "index"})
+
             st.session_state["specific_property"] = last_clicked_property
 
             # Display the property details in col3
@@ -340,6 +344,9 @@ def main():
                 st.session_state["nearest_parking"] = last_clicked_property[['parking_lat', 'parking_long']]
             else:
                 st.session_state["map_type"] = "specific_no_amenities"
+
+            if st.button("Analyze Property Listing"):
+                analyzePropertyListing(last_clicked_property, properties)
 
 if __name__ == "__main__":
     main()
