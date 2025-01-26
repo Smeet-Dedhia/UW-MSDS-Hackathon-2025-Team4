@@ -1,42 +1,98 @@
-import streamlit as st
 import pandas as pd
-from homeharvest import scrape_property
-from datetime import datetime
-import folium
+import geopandas
+from geopy.geocoders import Nominatim
+import streamlit as st
 from streamlit_folium import st_folium
-import time
+import folium
+from shapely.geometry import Point
+from homeharvest import scrape_property
 
-#st.set_page_config(layout="wide")
 
-st.title('PROPERTY FINDER')
-st.sidebar.title('put data here lol')
+def getCoordsFromAddress(address):
+    geolocator = Nominatim(user_agent="my_geocoder")
 
-properties = scrape_property(
-  location="Seattle, WA",
-  listing_type="for_rent",  # or (for_sale, for_rent, pending)
-  past_days=120,  # sold in last 30 days - listed in last 30 days if (for_sale, for_rent)
-  limit=50
+    location = geolocator.geocode(address)
 
-  # property_type=['single_family','multi_family'],
-  # date_from="2023-05-01", # alternative to past_days
-  # date_to="2023-05-28",
-  # foreclosure=True
-  # mls_only=True,  # only fetch MLS listings
-)
+    if location:
+        return [location.latitude, location.longitude]
+    else:
+        seattle_coords = [47.6061, -122.3328]
+        return seattle_coords
 
-#properties = properties.loc[np.where(properties[['latitude', 'longitude']].isnull().all(axis = 1), 1, 0)]
-properties = properties[properties['latitude'].notna()]
-properties = properties[properties['longitude'].notna()]
-properties_shortened = properties[['property_url', 'list_price', 'list_price_min', 'list_price_max', 'street', 'latitude', 'longitude']]
 
-#location = properties_shortened[['latitude', 'longitude']]
+def generateHTML(link, photo, cost, bedrooms, bathrooms, size, street_address, city, state, zip_code):
+    output_html = f"""
+            <p><img style="display: block; margin-left: auto; margin-right: auto;" src="{photo}" alt="image of {street_address}" width="300" height="200"/></p>
+            <h2 style="text-align: center;"><a target="_blank" rel="noopener noreferrer" href="{link}"><strong>${cost:.2f}</strong></a></h2>
+            <p style="text-align: center;"><strong>{bedrooms:.0f} BD | {bathrooms:.0f} BA | {size:.0f} SQFT</strong></p>
+            <p style="text-align: center;"><strong>{street_address}, {city}, {state}, {zip_code}</strong></p>
+        """
 
-m = folium.Map(location=[47.6061, -122.3328], zoom_start=12)
+    return output_html
 
-for i in range(0,len(properties_shortened)):
-   folium.Marker(
-      location=[properties_shortened.iloc[i]['latitude'], properties_shortened.iloc[i]['longitude']],
-      popup=properties_shortened.iloc[i]['street'],
-   ).add_to(m)
+def getProperties():
+    properties = pd.read_csv('FinalProperties.csv')
 
-st_data = st_folium(m, width = 700)
+    properties = properties[properties['latitude'].notna()]
+    properties = properties[properties['longitude'].notna()]
+
+    properties['cost'] = properties[['list_price', 'list_price_min', 'list_price_max']].mean(axis = 1)
+    properties = properties.drop(columns = ['list_price', 'list_price_min', 'list_price_max'])
+
+    return properties
+
+# Initialize the map
+def init_map(center=(47.6061, -122.3328), zoom_start=12, map_type="OpenStreetMap"):
+    return folium.Map(location=center, zoom_start=zoom_start, tiles=map_type)
+
+# Create a GeoDataFrame from the dataset
+def create_point_map(properties):
+    properties[['latitude', 'longitude']] = properties[['latitude', 'longitude']].apply(pd.to_numeric, errors='coerce')
+    properties['coordinates'] = properties[['latitude', 'longitude']].values.tolist()
+    properties['coordinates'] = properties['coordinates'].apply(Point)
+    properties = geopandas.GeoDataFrame(properties, geometry='coordinates')
+    properties = properties.dropna(subset=['latitude', 'longitude', 'coordinates'])
+    return properties
+
+def plot_map(properties, folium_map):
+    properties = create_point_map(properties)
+
+    for i, property in properties.iterrows():
+
+        property_html = generateHTML(
+            link=property['property_url'],
+            photo=property['primary_photo'],
+            cost=property['cost'],
+            bedrooms=property['beds'],
+            bathrooms=property['full_baths'],
+            size=property['sqft'],
+            street_address=property['street'],
+            city=property['city'],
+            state=property['state'],
+            zip_code=property['zip_code']
+        )
+
+        # Custom marker design
+        custom_icon = folium.Icon(color="blue", icon="home")
+        folium.Marker(
+            [property['latitude'], property['longitude']],
+            popup=property_html,
+            icon=custom_icon
+        ).add_to(folium_map)
+
+    return folium_map
+
+# Main function
+def main():
+    st.set_page_config(page_title="Home Visualizer", page_icon="🏠", layout="wide")
+    st.title("HOME VISUALIZER")
+
+    # Load the dataset
+    properties = getProperties()
+
+    m = init_map()
+    m = plot_map(properties, m)
+    st_folium(m, height=520, width=600)
+
+if __name__ == "__main__":
+    main()
